@@ -207,9 +207,9 @@ $('app').appendChild(renderer.domElement);
 
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x0d1117);
-scene.fog = new THREE.Fog(0x0d1117, 22, 78);
+scene.fog = new THREE.Fog(0x0d1117, 26, 110);
 
-const camera = new THREE.PerspectiveCamera(78, innerWidth/innerHeight, 0.05, 400);
+const camera = new THREE.PerspectiveCamera(78, innerWidth/innerHeight, 0.05, 500);
 
 addEventListener('resize', () => {
   camera.aspect = innerWidth/innerHeight;
@@ -245,7 +245,7 @@ const MAT = {
 
 // ---------- Nivel ----------
 const WALL_H = 3.2, WALL_T = 0.3;
-const LEVEL = { minX:-22, maxX:22, minZ:-22, maxZ:22 };
+const LEVEL = { minX:-38, maxX:38, minZ:-38, maxZ:38 };
 
 function buildBox(x, z, w, d, h, mat, kind='wall') {
   const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat);
@@ -259,28 +259,56 @@ function buildBox(x, z, w, d, h, mat, kind='wall') {
 function buildWallX(x, z, len, t=WALL_T) { return buildBox(x, z, len, t, WALL_H, MAT.wall); }
 function buildWallZ(x, z, len, t=WALL_T) { return buildBox(x, z, t, len, WALL_H, MAT.wall); }
 
-const floor = new THREE.Mesh(new THREE.PlaneGeometry(52, 52), MAT.floor);
+const floor = new THREE.Mesh(new THREE.PlaneGeometry(84, 84), MAT.floor);
 floor.rotation.x = -Math.PI/2;
 floor.receiveShadow = true;
 scene.add(floor);
 
-buildWallX(0, LEVEL.minZ, 44);
-buildWallX(0, LEVEL.maxZ, 44);
-buildWallZ(LEVEL.minX, 0, 44);
-buildWallZ(LEVEL.maxX, 0, 44);
+buildWallX(0, LEVEL.minZ, 76);
+buildWallX(0, LEVEL.maxZ, 76);
+buildWallZ(LEVEL.minX, 0, 76);
+buildWallZ(LEVEL.maxX, 0, 76);
 
-buildWallX(0, -8, 30);
-buildWallX(-10, -3, 9);
-buildWallZ(6, -12, 18);
-buildWallZ(-6, 4, 22);
-buildWallX(9, 6, 16);
-buildWallZ(15, -2, 14);
-buildWallX(-14, 10, 14);
+// Ala norte: pasillo largo con dos travesias
+buildWallX(0, -16, 44);
+buildWallX(-20, -8, 22);
+buildWallX(14, -8, 18);
+buildWallZ(-30, -22, 20);
+buildWallZ(-8, -24, 18);
+buildWallZ(18, -26, 22);
+
+// Ala central: nucleo con pasillo en S
+buildWallZ(-14, 2, 30);
+buildWallZ(4, -2, 24);
+buildWallX(-9, 14, 20);
+buildWallX(16, 10, 22);
+buildWallX(-28, 22, 20);
+
+// Ala sur: dos salas y un patio
+buildWallZ(24, 20, 26);
+buildWallZ(-4, 26, 22);
+buildWallX(10, 30, 30);
+buildWallX(-22, -2, 16);
+buildWallZ(30, -14, 18);
+
+// Ala este: pasillo de conexion
+buildWallX(28, -4, 20);
+buildWallZ(22, 6, 16);
+buildWallX(-16, -30, 26);
 
 const crates = [
-  [-13,-14,2.0], [-4,-15,1.6], [5,-16,2.2], [13,-14,1.8],
-  [-15,6,1.7], [-2,1,2.0], [11,-2,1.9], [17,9,2.0],
-  [-9,14,2.1], [3,13,1.7], [12,15,1.8], [-18,-2,1.6],
+  // zona noroeste
+  [-30,-30,2.0], [-24,-32,1.6], [-32,-20,2.2], [-22,-24,1.8], [-34,-12,1.7],
+  // zona norte
+  [-10,-30,2.1], [-2,-26,1.7], [6,-32,1.9], [14,-28,2.0], [22,-34,1.6],
+  // nucleo central
+  [-20,4,2.0], [-6,2,1.8], [4,10,2.2], [12,4,1.7], [-2,-6,1.9],
+  // zona este
+  [24,-4,2.0], [30,10,1.7], [20,18,1.9], [34,2,1.6], [26,26,2.1],
+  // zona sur
+  [-18,30,2.0], [-8,22,1.7], [6,34,1.9], [16,26,2.0], [-30,16,1.6],
+  // cobertura suelta
+  [-14,20,1.8], [8,-18,1.7], [-26,34,1.9], [32,-20,2.0],
 ];
 for (const [x,z,s] of crates) {
   const h = 1.1 + (s-1.6)*0.3;
@@ -289,51 +317,121 @@ for (const [x,z,s] of crates) {
 }
 
 // ---------- Puertas ----------
+// Cada puerta es un grupo DOM-like: pivote en el marco, panel desplazado
+// media anchura, y un colisionador AABB que se recalcula desde la matriz
+// de mundo del panel en cada frame. Asi la colision SIEMPRE coincide con
+// lo que se ve, en cualquier angulo de apertura.
 const doors = [];
+const DOOR_W = 2.2, DOOR_H = 2.6, DOOR_T = 0.14;
+
 function buildDoor(x, z, vertical) {
-  const w = 2.1, h = 2.5, t = 0.12;
+  // pivote en el marco
   const pivot = new THREE.Group();
   pivot.position.set(x, 0, z);
+  pivot.rotation.y = vertical ? Math.PI/2 : 0;
   scene.add(pivot);
 
-  const panel = new THREE.Mesh(new THREE.BoxGeometry(w, h, t), MAT.door);
-  panel.position.set(w/2, h/2, 0);
-  panel.castShadow = true; panel.receiveShadow = true;
+  // hoja: desplazada media anchura para que gire sobre su gozne
+  const panel = new THREE.Mesh(new THREE.BoxGeometry(DOOR_W, DOOR_H, DOOR_T), MAT.door);
+  panel.position.set(DOOR_W/2, DOOR_H/2, 0);
+  panel.castShadow = true;
+  panel.receiveShadow = true;
   pivot.add(panel);
-  if (vertical) pivot.rotation.y = Math.PI/2;
 
-  const d = { pivot, panel, x, z, vertical, angle: 0, target: 0, speed: 2.4, w, t };
+  // pomo, para que se vea por donde se agarra
+  const knob = new THREE.Mesh(new THREE.SphereGeometry(0.06, 10, 8),
+    new THREE.MeshStandardMaterial({ color:0xc9a227, roughness:0.35, metalness:0.8 }));
+  knob.position.set(DOOR_W - 0.22, 1.05, DOOR_T/2 + 0.06);
+  pivot.add(knob);
+
+  // marco (jamba y dintel)
+  const frameMat = MAT.wall;
+  const jamb = new THREE.BoxGeometry(0.14, DOOR_H + 0.2, 0.34);
+  const left = new THREE.Mesh(jamb, frameMat);
+  left.position.set(-0.07, (DOOR_H + 0.2)/2, 0);
+  const lintel = new THREE.Mesh(new THREE.BoxGeometry(DOOR_W + 0.28, 0.22, 0.34), frameMat);
+  lintel.position.set(DOOR_W/2, DOOR_H + 0.11, 0);
+  pivot.add(left, lintel);
+  addCollider(x - 0.14, x + 0.08, z - 0.17, z + 0.17, 'frame', left);
+
+  const d = {
+    pivot, panel, x, z, vertical,
+    angle: 0, target: 0,
+    speed: 3.2,
+    open: false,
+    col: null,
+  };
   doors.push(d);
 
-  const col = addCollider(x-t, x+t, z-t, z+t, 'door', d);
+  const col = addCollider(x - 0.2, x + 0.2, z - 0.2, z + 0.2, 'door', d);
   d.col = col;
   return d;
 }
 
-buildDoor(0, -8, false);
-buildDoor(6, -12, true);
-buildDoor(-10, -3, false);
-buildDoor(15, -2, true);
+// pasos obligados del complejo ampliado
+buildDoor(0, -16, false);     // pasillo norte
+buildDoor(-14, 2, true);      // nucleo central
+buildDoor(4, -2, true);
+buildDoor(24, 20, true);      // ala sur
+buildDoor(-4, 26, true);
+buildDoor(28, -4, false);     // conexion este
+buildDoor(-22, -2, false);
+buildDoor(18, -26, true);     // sala noreste
+buildDoor(-8, -24, true);     // entrada noroeste
+
+const DOOR_OPEN = 1.62;
+const _wp = new THREE.Vector3();
+const _pos = new THREE.Vector3();
+const _quat = new THREE.Quaternion();
+const _scl = new THREE.Vector3();
 
 function updateDoors(dt) {
   for (const d of doors) {
-    d.angle += (d.target - d.angle) * Math.min(1, dt * d.speed * 3);
+    const goal = d.open ? DOOR_OPEN : 0;
+    d.angle += (goal - d.angle) * Math.min(1, dt * d.speed * 3.2);
+    if (Math.abs(goal - d.angle) < 0.004) d.angle = goal;
     d.pivot.rotation.y = (d.vertical ? Math.PI/2 : 0) + d.angle;
 
-    const c = Math.abs(Math.cos(d.angle)), s = Math.abs(Math.sin(d.angle));
-    const halfW = (d.w/2) * c + (d.t/2) * s;
-    const halfD = (d.w/2) * s + (d.t/2) * c;
-    const cx = d.x + Math.cos(d.angle + (d.vertical?Math.PI/2:0)) * (d.w/2);
-    const cz = d.z + Math.sin(d.angle + (d.vertical?Math.PI/2:0)) * (d.w/2);
-    d.col.minX = cx - halfW; d.col.maxX = cx + halfW;
-    d.col.minZ = cz - halfD; d.col.maxZ = cz + halfD;
-    d.col.disabled = d.angle > 0.7;
+    // recalcular AABB desde la transformada real del panel
+    d.panel.updateWorldMatrix(true, false);
+    d.panel.matrixWorld.decompose(_pos, _quat, _scl);
+
+    const ex = new THREE.Vector3(1,0,0).applyQuaternion(_quat);
+    const ez = new THREE.Vector3(0,0,1).applyQuaternion(_quat);
+    const halfX = Math.abs(ex.x) * DOOR_W/2 + Math.abs(ez.x) * DOOR_T/2;
+    const halfZ = Math.abs(ex.z) * DOOR_W/2 + Math.abs(ez.z) * DOOR_T/2;
+
+    d.col.minX = _pos.x - halfX; d.col.maxX = _pos.x + halfX;
+    d.col.minZ = _pos.z - halfZ; d.col.maxZ = _pos.z + halfZ;
+    d.col.disabled = d.angle > DOOR_OPEN * 0.72;
+  }
+}
+
+// Abre o cierra la puerta mas cercana.
+function tryDoor() {
+  if (!player.alive) return false;
+  let closest = null, best = 3.2;
+  for (const d of doors) {
+    const dist = Math.hypot(d.x - player.pos.x, d.z - player.pos.z);
+    if (dist < best) { best = dist; closest = d; }
+  }
+  if (!closest) { flashCenter('No hay puerta cerca'); return false; }
+  closest.open = !closest.open;
+  flashCenter(closest.open ? 'Puerta abierta' : 'Puerta cerrada', 900);
+  return true;
+}
+
+// Los enemigos empujan las puertas al acercarse.
+function nudgeDoors(pos) {
+  for (const d of doors) {
+    if (d.open) continue;
+    if (Math.hypot(d.x - pos.x, d.z - pos.z) < 3.0) d.open = true;
   }
 }
 
 // ---------- Jugador ----------
 const player = {
-  pos: new THREE.Vector3(-16, CFG.eyeHeight, 16),
+  pos: new THREE.Vector3(-34, CFG.eyeHeight, 34),
   vel: new THREE.Vector3(),
   yaw: -2.4, pitch: 0,
   onGround: true,
@@ -376,9 +474,26 @@ const weapon = {
 // ---------- Enemigos ----------
 const enemies = [];
 const ENEMY_PATROLS = [
-  [[12,-16],[12,-6],[4,-6],[4,-16]],
-  [[-8,8],[-8,16],[2,16],[2,8]],
-  [[16,12],[16,4],[10,4],[10,12]],
+  // sala noreste
+  [[22,-30],[22,-18],[12,-18],[12,-30]],
+  // pasillo norte
+  [[-6,-30],[10,-30],[10,-20],[-6,-20]],
+  // esquina noroeste
+  [[-32,-32],[-22,-32],[-22,-22],[-32,-22]],
+  // flanco oeste
+  [[-32,-8],[-24,-8],[-24,6],[-32,6]],
+  // nucleo central
+  [[-10,2],[2,2],[2,12],[-10,12]],
+  // sala central este
+  [[10,6],[20,6],[20,16],[10,16]],
+  // patio sur
+  [[-30,20],[-18,20],[-18,32],[-30,32]],
+  // ala sur
+  [[-4,24],[10,24],[10,34],[-4,34]],
+  // corredor este
+  [[26,-2],[34,-2],[34,12],[26,12]],
+  // sureste
+  [[20,26],[34,26],[34,36],[20,36]],
 ];
 
 function spawnEnemy(patrol, i) {
@@ -398,7 +513,7 @@ function spawnEnemy(patrol, i) {
     patrol, wp: 1,
     hp: 100, alive: true,
     state: 'patrol',
-    speed: 2.2, viewDist: 30, viewAngle: Math.cos(Math.PI/3.4),
+    speed: 2.3, viewDist: 26, viewAngle: Math.cos(Math.PI/3.8),
     lastSeen: new THREE.Vector3(), lostTimer: 0, alertTimer: 0,
     walkPhase: 0, side: i % 2 ? 1 : -1,
     fireCd: 0.6 + Math.random()*0.8, muzzle: 0,
@@ -649,18 +764,6 @@ function finishReload() {
   updateHud();
 }
 
-// ---------- Puertas ----------
-function tryDoor() {
-  if (!player.alive) return;
-  let closest = null, cd = 2.6;
-  for (const d of doors) {
-    const dist = Math.hypot(d.x - player.pos.x, d.z - player.pos.z);
-    if (dist < cd) { cd = dist; closest = d; }
-  }
-  if (closest) closest.target = closest.target > 0.4 ? 0 : 1.55;
-  else flashCenter('No hay puerta cerca');
-}
-
 // ---------- IA ----------
 const losRay = new THREE.Raycaster();
 const losSolidCache = { list: [], stamp: -1 };
@@ -711,6 +814,8 @@ function updateEnemies(dt, now) {
       if (e.alertTimer <= 0) e.state = 'patrol';
     }
 
+    nudgeDoors(e.pos);
+
     if (e.state === 'combat') {
       const want = 7.5;
       const nx = dx / (dist || 1), nz = dz / (dist || 1);
@@ -737,8 +842,8 @@ function updateEnemies(dt, now) {
 
     e.fireCd -= dt;
     if (e.state === 'combat' && canSee && dist < 30 && e.fireCd <= 0) {
-      e.fireCd = 0.7 + Math.random() * 0.85;
-      const base = 0.30 - Math.min(0.18, dist / 170);
+      e.fireCd = 0.9 + Math.random() * 1.1;
+      const base = 0.22 - Math.min(0.14, dist / 170);
       const pen = player.crouch ? 0.06 : 0;
       if (Math.random() < base - pen) hurtPlayer(6 + Math.random() * 7);
       e.muzzle = 0.07;
@@ -844,7 +949,7 @@ function feed(text) {
 
 // ---------- Minimapa ----------
 function drawMinimap() {
-  const S = 190, half = 26;
+  const S = 190, half = 40;
   mmCtx.clearRect(0, 0, S, S);
   mmCtx.fillStyle = 'rgba(12,16,20,.8)';
   mmCtx.fillRect(0, 0, S, S);
@@ -853,7 +958,7 @@ function drawMinimap() {
 
   mmCtx.fillStyle = 'rgba(120,135,150,.55)';
   for (const c of colliders) {
-    if (c.disabled || c.kind === 'door') continue;
+    if (c.disabled || c.kind === 'door' || c.kind === 'frame') continue;
     mmCtx.fillRect(tx(c.minX), tz(c.minZ), (c.maxX-c.minX)*sc, (c.maxZ-c.minZ)*sc);
   }
 
@@ -863,7 +968,7 @@ function drawMinimap() {
   }
 
   for (const d of doors) {
-    mmCtx.fillStyle = d.angle > 0.7 ? 'rgba(90,220,120,.6)' : 'rgba(220,180,90,.8)';
+    mmCtx.fillStyle = d.open ? 'rgba(90,220,120,.7)' : 'rgba(220,180,90,.9)';
     mmCtx.fillRect(tx(d.x)-2, tz(d.z)-2, 4, 4);
   }
 
@@ -997,11 +1102,12 @@ function togglePause(on) {
 }
 
 function restart() {
-  player.pos.set(-16, CFG.eyeHeight, 16);
+  player.pos.set(-34, CFG.eyeHeight, 34);
   player.vel.set(0,0,0);
   player.yaw = -2.4; player.pitch = 0;
   player.hp = CFG.maxHp; player.alive = true;
   weapon.mag = WEAPON.magSize; weapon.reserve = WEAPON.reserveStart; weapon.reloading = false;
+  doors.forEach(d => { d.open = false; d.angle = 0; d.target = 0; });
   dom.reloadNote.textContent = '';
 
   enemies.forEach(e => {
@@ -1013,7 +1119,6 @@ function restart() {
     e.alert.visible = false;
   });
 
-  doors.forEach(d => { d.target = 0; d.angle = 0; });
   updateHud();
 }
 
