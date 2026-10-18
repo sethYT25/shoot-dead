@@ -6,7 +6,7 @@ Prototipo de **shooter tactico CQB** estilo *Ready or Not*, jugable directamente
 
 ## Como jugar
 
-Sin instalacion, sin dependencias, sin internet:
+Sin instalacion y sin dependencias. Solo necesitas conexion a internet la primera vez (Three.js se carga desde CDN).
 
 1. Abre `index.html` en tu navegador (doble clic).
 2. Pulsa **Jugar**.
@@ -31,11 +31,13 @@ Sin instalacion, sin dependencias, sin internet:
 
 - Movimiento FPS con aceleracion, *sprint*, agacharse y salto.
 - Camara FPS con ADS (zoom y reduccion de dispersion).
-- Disparo por *raycast* con dispersion, retroceso vertical y recarga con cadencia.
+- Disparo por *raycast* con dispersion, retroceso y recarga con cadencia.
+- **Hitboxes de capsula vertical** por enemigo (cuerpo de pies a hombros, cabeza aparte) con multiplicador de dano x2.6 en tiros a la cabeza.
+- Trazadoras visibles y marcas de impacto (rojas sobre enemigo, blancas sobre geometria).
 - Nivel CQB: pasillo, pasillos laterales, cajas de cobertura y puertas operables.
-- IA de enemigos: rondas de patrulla por waypoints, deteccion por linea de vision y cono de vision, reaccion y disparo.
-- Vida, dano, muerte y respawn.
-- HUD: vida, municion, estado del arma, bajas y minimapa.
+- IA de enemigos con **linea de vision real** (oclusion por paredes), cono de vision, maquina de estados `patrol -> alert -> combat`, ronda de waypoints, orbita a distancia de combate y fuego.
+- Vida, dano, muerte y respawn. Agacharse reduce la probabilidad de ser alcanzado.
+- HUD: vida, municion, estado del arma, hostiles restantes, bajas y minimapa con cono de vision.
 - Colisiones con paredes, cajas y puertas.
 
 ## Estructura
@@ -65,7 +67,8 @@ src/
 - [x] Movimiento, ADS, disparo, recarga
 - [x] Nivel CQB con puertas
 - [x] IA basica de enemigos
-- [ ] Ajustar el *feel* con tu feedback
+- [x] Hitboxes correctos y dano a la cabeza
+- [ ] Ajustar el *feel* con feedback de juego
 
 ### Fase 2 — Profundidad de mecanicas
 - [ ] Granadas y humo
@@ -73,6 +76,8 @@ src/
 - [ ] Modo *flashbang* y vision reducida
 - [ ] Objetivos (rescatar rehenes, asegurar zona)
 - [ ] Sistema de puntuacion tactico (uso de fuerza)
+- [ ] Sonido (disparos, pasos, reacciones)
+- [ ] IA que use cobertura y coordine entre enemigos
 - [ ] Migracion a estructura modular + Vite
 
 ### Fase 3 — El salto real
