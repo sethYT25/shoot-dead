@@ -914,7 +914,7 @@ function updateIdle(dt) {
 
 function update(dt, now) {
   const forward = new THREE.Vector3(-Math.sin(player.yaw), 0, -Math.cos(player.yaw));
-  const right = new THREE.Vector3(forward.z, 0, -forward.x);
+  const right = new THREE.Vector3(-forward.z, 0, forward.x);
   const wish = new THREE.Vector3();
   if (keys['KeyW']) wish.add(forward);
   if (keys['KeyS']) wish.sub(forward);
